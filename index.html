@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SafeDrive AI - Drowsiness Detection System</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- MediaPipe FaceMesh & Camera Utility CDNs -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="dashboard-container">
+    <header class="hud-header">
+      <div class="brand">
+        <span class="status-indicator live"></span>
+        <h1>SAFEDRIVE AI</h1>
+      </div>
+      <div class="system-time" id="systemClock">SYSTEM READY</div>
+    </header>
+
+    <main class="view-wrapper">
+      <div class="camera-card">
+        <video id="webcam" playsinline></video>
+        <canvas id="outputCanvas"></canvas>
+        
+        <div id="alarmOverlay" class="alarm-overlay hidden">
+          <div class="alarm-banner">
+            <h2>⚠️ DROWSINESS ALERT! ⚠️</h2>
+            <p>DRIVER EYES CLOSED - WAKE UP IMMEDIATELY</p>
+          </div>
+        </div>
+      </div>
+
+      <aside class="telemetry-panel">
+        <div class="metric-card">
+          <span class="metric-label">EYE ASPECT RATIO (EAR)</span>
+          <div class="metric-value" id="earVal">0.00</div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="earBar"></div>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <span class="metric-label">CLOSED FRAMES</span>
+          <div class="metric-value counter" id="frameCounter">0 / 25</div>
+        </div>
+
+        <div class="metric-card">
+          <span class="metric-label">DRIVER STATUS</span>
+          <div class="status-badge" id="driverStatus">STANDBY</div>
+        </div>
+
+        <div class="controls">
+          <button id="startBtn" class="btn primary-btn">Start System</button>
+          <button id="calibrateBtn" class="btn secondary-btn" disabled>Test Alarm</button>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
