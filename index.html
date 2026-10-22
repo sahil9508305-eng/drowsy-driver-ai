@@ -1,65 +1,152 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SafeDrive AI - Drowsiness Detection System</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drowsy Drive AI Pro | Neural Biometric HUD</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- MediaPipe FaceMesh -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 
-  <!-- MediaPipe FaceMesh & Camera Utility CDNs -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #030712;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.12) 0px, transparent 50%);
+        }
+        .font-hud { font-family: 'Orbitron', sans-serif; }
+        .font-mono-tech { font-family: 'JetBrains Mono', monospace; }
+        .mirror { transform: scaleX(-1); }
+
+        /* Glassmorphism Cards */
+        .hud-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(56, 189, 248, 0.05);
+        }
+
+        /* Scanning Line Animation */
+        .scanline {
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #22d3ee, transparent);
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0.6;
+            animation: scan 3.5s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes scan {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+
+        /* Red Emergency Screen Flash */
+        @keyframes emergency-strobe {
+            0%, 100% { box-shadow: inset 0 0 0px rgba(239, 68, 68, 0); }
+            50% { box-shadow: inset 0 0 120px rgba(239, 68, 68, 0.75); }
+        }
+        .critical-screen {
+            animation: emergency-strobe 0.6s infinite;
+        }
+
+        /* Corner HUD Brackets */
+        .hud-bracket {
+            width: 24px;
+            height: 24px;
+            position: absolute;
+            border-color: #22d3ee;
+            pointer-events: none;
+        }
+    </style>
 </head>
-<body>
-  <div class="dashboard-container">
-    <header class="hud-header">
-      <div class="brand">
-        <span class="status-indicator live"></span>
-        <h1>SAFEDRIVE AI</h1>
-      </div>
-      <div class="system-time" id="systemClock">SYSTEM READY</div>
+<body id="mainBody" class="text-slate-100 min-h-screen flex flex-col overflow-x-hidden transition-all duration-300">
+
+    <!-- Top Navigation Bar -->
+    <header class="hud-card border-b border-cyan-500/30 px-6 py-3 flex flex-wrap justify-between items-center z-20 sticky top-0">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-400 flex items-center justify-center shadow-[0_0_15px_rgba(34,211,238,0.4)]">
+                <span class="text-xl">👁️</span>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <h1 class="font-hud text-lg md:text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400">
+                        DROWSY DRIVE AI
+                    </h1>
+                    <span class="text-[10px] font-mono-tech uppercase px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded">v2.5 PRO</span>
+                </div>
+                <p class="text-xs text-slate-400">Neural Face Mesh & Driver Fatigue Telemetry System</p>
+            </div>
+        </div>
+
+        <!-- Top Status Pills -->
+        <div class="flex items-center space-x-4 mt-2 sm:mt-0">
+            <div class="flex items-center space-x-2 bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-mono-tech">
+                <span class="text-slate-400">VOICE AI:</span>
+                <button id="voiceToggleBtn" onclick="toggleVoice()" class="text-emerald-400 font-bold">ON 🔊</button>
+            </div>
+            <div id="systemStateBadge" class="flex items-center space-x-2 px-3.5 py-1.5 rounded-full text-xs font-hud tracking-wider bg-slate-800 text-slate-300 border border-slate-600">
+                <span id="stateDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                <span id="stateText">STANDBY</span>
+            </div>
+        </div>
     </header>
 
-    <main class="view-wrapper">
-      <div class="camera-card">
-        <video id="webcam" playsinline></video>
-        <canvas id="outputCanvas"></canvas>
-        
-        <div id="alarmOverlay" class="alarm-overlay hidden">
-          <div class="alarm-banner">
-            <h2>⚠️ DROWSINESS ALERT! ⚠️</h2>
-            <p>DRIVER EYES CLOSED - WAKE UP IMMEDIATELY</p>
-          </div>
-        </div>
-      </div>
+    <!-- Main Dashboard Grid -->
+    <main class="flex-grow container mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-      <aside class="telemetry-panel">
-        <div class="metric-card">
-          <span class="metric-label">EYE ASPECT RATIO (EAR)</span>
-          <div class="metric-value" id="earVal">0.00</div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" id="earBar"></div>
-          </div>
-        </div>
+        <!-- LEFT COLUMN: Deep Face Analysis & Biometrics (3 Cols) -->
+        <div class="lg:col-span-3 flex flex-col space-y-5">
+            
+            <!-- Driver Fatigue Score Gauge -->
+            <div class="hud-card rounded-2xl p-5 flex flex-col items-center relative overflow-hidden">
+                <div class="w-full flex justify-between items-center mb-3">
+                    <span class="text-xs font-hud uppercase tracking-wider text-cyan-400">Driver Readiness</span>
+                    <span id="safetyLabel" class="text-xs font-mono-tech px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">OPTIMAL</span>
+                </div>
 
-        <div class="metric-card">
-          <span class="metric-label">CLOSED FRAMES</span>
-          <div class="metric-value counter" id="frameCounter">0 / 25</div>
-        </div>
+                <!-- Circular Progress SVG -->
+                <div class="relative w-36 h-36 flex items-center justify-center my-1">
+                    <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" stroke="#1e293b" stroke-width="8" fill="none" />
+                        <circle id="fatigueCircle" cx="50" cy="50" r="42" stroke="#10b981" stroke-width="8" fill="none" 
+                                stroke-dasharray="264" stroke-dashoffset="0" stroke-linecap="round" class="transition-all duration-300"/>
+                    </svg>
+                    <div class="absolute flex flex-col items-center">
+                        <span id="alertnessScore" class="font-hud text-3xl font-black text-white">100%</span>
+                        <span class="text-[10px] uppercase tracking-widest text-slate-400">Alertness</span>
+                    </div>
+                </div>
 
-        <div class="metric-card">
-          <span class="metric-label">DRIVER STATUS</span>
-          <div class="status-badge" id="driverStatus">STANDBY</div>
-        </div>
+                <div class="w-full grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-center">
+                    <div>
+                        <p class="text-[11px] text-slate-400">Blink Rate</p>
+                        <p id="blinkCountUI" class="font-mono-tech text-base font-bold text-cyan-300">0 <span class="text-[10px] font-normal text-slate-500">total</span></p>
+                    </div>
+                    <div>
+                        <p class="text-[11px] text-slate-400">Yawn Count</p>
+                        <p id="yawnCountUI" class="font-mono-tech text-base font-bold text-purple-300">0 <span class="text-[10px] font-normal text-slate-500">total</span></p>
+                    </div>
+                </div>
+            </div>
 
-        <div class="controls">
-          <button id="startBtn" class="btn primary-btn">Start System</button>
-          <button id="calibrateBtn" class="btn secondary-btn" disabled>Test Alarm</button>
-        </div>
-      </aside>
-    </main>
-  </div>
+            <!-- Real-time Face Biometric Bars -->
+            <div class="hud-card rounded-2xl p-5 flex flex-col space-y-4 flex-grow">
+                <h2 class="text-xs font-hud uppercase tracking-wider text-cyan-400 border-b border-slate-800 pb-2">
+                    🧬 Face Biometric Analysis
+                </h2>
 
-  <script src="script.js"></script>
-</body>
-</html>
+                <!-- Left & Right Eye Openness -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-300">Left Eye Openness</span>
+                        <span id="leftEyePct" class="font-mono-tech text-cyan-400">
