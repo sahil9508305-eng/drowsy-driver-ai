@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drowsy Drive AI Pro | Neural Biometric HUD</title>
+    <title>Drowsy Drive AI — Pro Telemetry & Face Analysis HUD</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <!-- MediaPipe FaceMesh -->
+    <!-- Google Fonts: Orbitron & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- MediaPipe FaceMesh & Utils -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
@@ -19,134 +19,758 @@
             background-color: #030712;
             background-image: 
                 radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.12) 0px, transparent 50%);
+                radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.12) 0px, transparent 50%);
         }
         .font-hud { font-family: 'Orbitron', sans-serif; }
-        .font-mono-tech { font-family: 'JetBrains Mono', monospace; }
+        .font-mono-code { font-family: 'JetBrains Mono', monospace; }
         .mirror { transform: scaleX(-1); }
 
-        /* Glassmorphism Cards */
+        /* Glassmorphism Card */
         .hud-card {
             background: rgba(15, 23, 42, 0.75);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(56, 189, 248, 0.2);
-            box-shadow: 0 0 25px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(56, 189, 248, 0.05);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(51, 65, 85, 0.6);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
         }
 
-        /* Scanning Line Animation */
-        .scanline {
-            width: 100%;
-            height: 3px;
-            background: linear-gradient(90deg, transparent, #22d3ee, transparent);
-            position: absolute;
-            top: 0;
-            left: 0;
-            opacity: 0.6;
-            animation: scan 3.5s linear infinite;
-            pointer-events: none;
-        }
-        @keyframes scan {
-            0% { top: 0%; }
-            100% { top: 100%; }
-        }
-
-        /* Red Emergency Screen Flash */
+        /* Emergency Red Screen Strobe */
         @keyframes emergency-strobe {
-            0%, 100% { box-shadow: inset 0 0 0px rgba(239, 68, 68, 0); }
-            50% { box-shadow: inset 0 0 120px rgba(239, 68, 68, 0.75); }
+            0%, 100% { box-shadow: inset 0 0 0px rgba(239, 68, 68, 0); border-color: rgba(51, 65, 85, 0.6); }
+            50% { box-shadow: inset 0 0 90px rgba(239, 68, 68, 0.75); border-color: #ef4444; }
         }
-        .critical-screen {
-            animation: emergency-strobe 0.6s infinite;
+        .critical-strobe {
+            animation: emergency-strobe 0.5s infinite;
         }
 
-        /* Corner HUD Brackets */
-        .hud-bracket {
-            width: 24px;
-            height: 24px;
+        /* Scanner Line Animation */
+        @keyframes scanline {
+            0% { top: 0%; opacity: 0.2; }
+            50% { opacity: 0.8; }
+            100% { top: 100%; opacity: 0.2; }
+        }
+        .scanner-beam {
             position: absolute;
-            border-color: #22d3ee;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #06b6d4, transparent);
+            box-shadow: 0 0 12px #06b6d4;
+            animation: scanline 3.5s linear infinite;
             pointer-events: none;
         }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #090d16; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
     </style>
 </head>
-<body id="mainBody" class="text-slate-100 min-h-screen flex flex-col overflow-x-hidden transition-all duration-300">
+<body class="text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500 selection:text-slate-950">
 
-    <!-- Top Navigation Bar -->
-    <header class="hud-card border-b border-cyan-500/30 px-6 py-3 flex flex-wrap justify-between items-center z-20 sticky top-0">
-        <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-400 flex items-center justify-center shadow-[0_0_15px_rgba(34,211,238,0.4)]">
-                <span class="text-xl">👁️</span>
+    <!-- Top Cockpit Header -->
+    <header class="hud-card border-b border-slate-800/80 px-6 py-3.5 sticky top-0 z-30 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center space-x-3.5">
+            <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/40 flex items-center justify-center shadow-lg shadow-cyan-500/10">
+                <span class="text-xl">👁️‍🗨️</span>
             </div>
             <div>
                 <div class="flex items-center space-x-2">
-                    <h1 class="font-hud text-lg md:text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400">
+                    <h1 class="font-hud text-lg md:text-xl font-bold tracking-wider bg-gradient-to-r from-cyan-400 via-teal-200 to-indigo-400 bg-clip-text text-transparent">
                         DROWSY DRIVE AI
                     </h1>
-                    <span class="text-[10px] font-mono-tech uppercase px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded">v2.5 PRO</span>
+                    <span class="text-[10px] font-mono-code uppercase px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">v2.5 PRO</span>
                 </div>
-                <p class="text-xs text-slate-400">Neural Face Mesh & Driver Fatigue Telemetry System</p>
+                <p class="text-xs text-slate-400">468-Point 3D Biometric Face Mesh & Driver Vigilance Telemetry</p>
             </div>
         </div>
 
-        <!-- Top Status Pills -->
-        <div class="flex items-center space-x-4 mt-2 sm:mt-0">
-            <div class="flex items-center space-x-2 bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-mono-tech">
-                <span class="text-slate-400">VOICE AI:</span>
-                <button id="voiceToggleBtn" onclick="toggleVoice()" class="text-emerald-400 font-bold">ON 🔊</button>
-            </div>
-            <div id="systemStateBadge" class="flex items-center space-x-2 px-3.5 py-1.5 rounded-full text-xs font-hud tracking-wider bg-slate-800 text-slate-300 border border-slate-600">
-                <span id="stateDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-                <span id="stateText">STANDBY</span>
+        <!-- System Status & Audio Controls -->
+        <div class="flex items-center space-x-3">
+            <button id="voiceToggleBtn" onclick="toggleVoice()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition flex items-center space-x-1.5">
+                <span id="voiceIcon">🗣️</span>
+                <span id="voiceStatusText">AI Voice: ON</span>
+            </button>
+            <button onclick="triggerManualTestAlert()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 transition flex items-center space-x-1.5">
+                <span>🚨</span>
+                <span>Test Siren</span>
+            </button>
+            <div id="systemStateBadge" class="px-3.5 py-1.5 rounded-full text-xs font-mono-code font-semibold bg-slate-900 text-slate-400 border border-slate-700 flex items-center space-x-2">
+                <span id="stateDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                <span id="stateLabel">STANDBY</span>
             </div>
         </div>
     </header>
 
-    <!-- Main Dashboard Grid -->
-    <main class="flex-grow container mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Main Cockpit Grid -->
+    <main class="flex-grow container mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        <!-- LEFT COLUMN: Deep Face Analysis & Biometrics (3 Cols) -->
-        <div class="lg:col-span-3 flex flex-col space-y-5">
-            
-            <!-- Driver Fatigue Score Gauge -->
-            <div class="hud-card rounded-2xl p-5 flex flex-col items-center relative overflow-hidden">
-                <div class="w-full flex justify-between items-center mb-3">
-                    <span class="text-xs font-hud uppercase tracking-wider text-cyan-400">Driver Readiness</span>
-                    <span id="safetyLabel" class="text-xs font-mono-tech px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">OPTIMAL</span>
-                </div>
+        <!-- Left Column: Live AI Vision & Face HUD (7 Cols) -->
+        <div class="lg:col-span-7 flex flex-col space-y-4">
+            <div id="cameraFrame" class="hud-card rounded-2xl p-3 relative overflow-hidden transition-all duration-300">
+                
+                <!-- Video & Canvas Wrapper -->
+                <div class="relative w-full aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
+                    <video id="videoElement" class="hidden" playsinline></video>
+                    <canvas id="canvasElement" class="w-full h-full object-cover mirror"></canvas>
+                    
+                    <!-- Cyber Scanner Effect -->
+                    <div id="scannerLine" class="scanner-beam hidden"></div>
 
-                <!-- Circular Progress SVG -->
-                <div class="relative w-36 h-36 flex items-center justify-center my-1">
-                    <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="42" stroke="#1e293b" stroke-width="8" fill="none" />
-                        <circle id="fatigueCircle" cx="50" cy="50" r="42" stroke="#10b981" stroke-width="8" fill="none" 
-                                stroke-dasharray="264" stroke-dashoffset="0" stroke-linecap="round" class="transition-all duration-300"/>
-                    </svg>
-                    <div class="absolute flex flex-col items-center">
-                        <span id="alertnessScore" class="font-hud text-3xl font-black text-white">100%</span>
-                        <span class="text-[10px] uppercase tracking-widest text-slate-400">Alertness</span>
+                    <!-- HUD Corner Brackets -->
+                    <div class="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-cyan-400/60 pointer-events-none"></div>
+                    <div class="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-cyan-400/60 pointer-events-none"></div>
+                    <div class="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-cyan-400/60 pointer-events-none"></div>
+                    <div class="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-cyan-400/60 pointer-events-none"></div>
+
+                    <!-- Top HUD Status Bar inside Camera -->
+                    <div id="hudBanner" class="absolute top-4 left-6 right-6 px-4 py-2.5 rounded-xl bg-slate-950/85 backdrop-blur-md border border-slate-800 flex justify-between items-center transition-all">
+                        <div class="flex items-center space-x-3">
+                            <span id="hudStatusEmoji" class="text-lg">🛡️</span>
+                            <div>
+                                <p id="hudStatusTitle" class="font-hud text-xs md:text-sm font-bold tracking-wider text-slate-200">
+                                    INITIALIZE AI CAMERA STREAM
+                                </p>
+                                <p id="hudStatusSub" class="text-[11px] text-slate-400">Waiting for webcam permission...</p>
+                            </div>
+                        </div>
+                        <div class="text-right font-mono-code">
+                            <span id="fpsDisplay" class="text-xs text-cyan-400 block">0 FPS</span>
+                            <span id="meshPointsDisplay" class="text-[10px] text-slate-500">0 PTS</span>
+                        </div>
+                    </div>
+
+                    <!-- Full-Screen Danger Pop-up Banner (Hidden by default) -->
+                    <div id="criticalModal" class="hidden absolute inset-x-6 bottom-6 bg-red-950/90 backdrop-blur-md border-2 border-red-500 rounded-xl p-4 flex items-center justify-between shadow-2xl">
+                        <div class="flex items-center space-x-3.5">
+                            <span class="text-3xl animate-bounce">⚠️</span>
+                            <div>
+                                <h3 id="criticalTitle" class="font-hud text-base md:text-lg font-black text-red-400 tracking-wide">
+                                    CRITICAL DROWSINESS DETECTED!
+                                </h3>
+                                <p id="criticalDesc" class="text-xs text-red-200">Driver eyes closed beyond safety threshold. Pull over immediately!</p>
+                            </div>
+                        </div>
+                        <span class="font-mono-code text-xs uppercase px-2.5 py-1 bg-red-500 text-slate-950 font-bold rounded animate-pulse">
+                            ALARM ACTIVE
+                        </span>
                     </div>
                 </div>
 
-                <div class="w-full grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-center">
-                    <div>
-                        <p class="text-[11px] text-slate-400">Blink Rate</p>
-                        <p id="blinkCountUI" class="font-mono-tech text-base font-bold text-cyan-300">0 <span class="text-[10px] font-normal text-slate-500">total</span></p>
+                <!-- Control Bar & Mesh Filters -->
+                <div class="mt-3 pt-2 flex flex-wrap justify-between items-center gap-3 px-1">
+                    <div class="flex items-center space-x-2.5">
+                        <button id="startBtn" onclick="startCameraAI()" class="bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-cyan-500/20 flex items-center space-x-2">
+                            <span>▶ Activate AI Vision</span>
+                        </button>
+                        <button onclick="toggleMeshOverlay()" id="meshBtn" class="bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2.5 rounded-xl text-xs font-medium transition">
+                            🕸️ Mesh: Full HUD
+                        </button>
                     </div>
-                    <div>
-                        <p class="text-[11px] text-slate-400">Yawn Count</p>
-                        <p id="yawnCountUI" class="font-mono-tech text-base font-bold text-purple-300">0 <span class="text-[10px] font-normal text-slate-500">total</span></p>
+
+                    <!-- Sensitivity Calibration -->
+                    <div class="flex items-center space-x-4 bg-slate-950/90 px-3.5 py-2 rounded-xl border border-slate-800/80">
+                        <div class="flex items-center space-x-2">
+                            <label class="text-[11px] text-slate-400">Eye Sensitivity (EAR):</label>
+                            <input type="range" id="earSlider" min="0.18" max="0.32" step="0.01" value="0.24" class="w-24 accent-cyan-400 cursor-pointer" oninput="updateEarThreshold(this.value)">
+                            <span id="earSliderVal" class="font-mono-code text-xs text-cyan-400 font-bold">0.24</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Real-time Face Biometric Bars -->
-            <div class="hud-card rounded-2xl p-5 flex flex-col space-y-4 flex-grow">
-                <h2 class="text-xs font-hud uppercase tracking-wider text-cyan-400 border-b border-slate-800 pb-2">
-                    🧬 Face Biometric Analysis
-                </h2>
+            <!-- Real-time EAR Wave Bar & Fatigue Meter -->
+            <div class="hud-card rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+                <!-- Fatigue Risk Progress -->
+                <div class="flex flex-col justify-between bg-slate-950/70 p-4 rounded-xl border border-slate-800/80">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Driver Fatigue Index</span>
+                        <span id="fatiguePercent" class="font-hud text-lg font-bold text-emerald-400">0%</span>
+                    </div>
+                    <div class="w-full h-3 bg-slate-900 rounded-full overflow-hidden my-3 border border-slate-800">
+                        <div id="fatigueBar" class="h-full bg-gradient-to-r from-emerald-500 via-amber-500 to-red-500 transition-all duration-150" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] font-mono-code text-slate-500">
+                        <span>0% OPTIMAL</span>
+                        <span>50% TIRED</span>
+                        <span>100% CRITICAL</span>
+                    </div>
+                </div>
 
-                <!-- Left & Right Eye Openness -->
-                <div>
-                    <div class="flex justify-between text-xs mb-1">
-                        <span class="text-slate-300">Left Eye Openness</span>
-                        <span id="leftEyePct" class="font-mono-tech text-cyan-400">
+                <!-- Live Head Orientation & Gaze -->
+                <div class="flex flex-col justify-between bg-slate-950/70 p-4 rounded-xl border border-slate-800/80">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Head Pose & Attention</span>
+                        <span id="poseBadge" class="text-xs font-mono-code px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">CENTERED</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 my-2 font-mono-code text-xs">
+                        <div class="bg-slate-900/90 p-2 rounded border border-slate-800 flex justify-between">
+                            <span class="text-slate-500">YAW (Turn):</span>
+                            <span id="yawVal" class="text-cyan-300">0°</span>
+                        </div>
+                        <div class="bg-slate-900/90 p-2 rounded border border-slate-800 flex justify-between">
+                            <span class="text-slate-500">PITCH (Tilt):</span>
+                            <span id="pitchVal" class="text-cyan-300">0°</span>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-slate-500">Detects side-glances & head-nodding off.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Face Biometrics & Alert Center (5 Cols) -->
+        <div class="lg:col-span-5 flex flex-col space-y-4">
+
+            <!-- Biometric Telemetry Cards -->
+            <div class="hud-card rounded-2xl p-5">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
+                    <h2 class="font-hud text-sm font-bold tracking-wider text-cyan-400 flex items-center space-x-2">
+                        <span>🔬</span>
+                        <span>LIVE FACE BIOMETRICS</span>
+                    </h2>
+                    <span id="blinkRateDisplay" class="text-xs font-mono-code text-slate-400">Blinks: 0</span>
+                </div>
+
+                <!-- 4 Core Metric Cards -->
+                <div class="grid grid-cols-2 gap-3.5">
+                    <!-- Left & Right Eye EAR -->
+                    <div class="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/90">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-400">Eye Aspect Ratio</span>
+                            <span class="text-[10px] font-mono-code text-cyan-400 bg-cyan-950/60 px-1.5 py-0.5 rounded">EAR</span>
+                        </div>
+                        <p id="earMetric" class="font-mono-code text-2xl font-bold text-slate-100 mt-1.5">0.00</p>
+                        <div class="flex justify-between text-[11px] text-slate-500 mt-1 font-mono-code">
+                            <span id="leftEarSub">L: 0.00</span>
+                            <span id="rightEarSub">R: 0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Mouth Aspect Ratio (Yawn) -->
+                    <div class="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/90">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-400">Mouth Opening</span>
+                            <span class="text-[10px] font-mono-code text-purple-400 bg-purple-950/60 px-1.5 py-0.5 rounded">MAR</span>
+                        </div>
+                        <p id="marMetric" class="font-mono-code text-2xl font-bold text-slate-100 mt-1.5">0.00</p>
+                        <p class="text-[11px] text-slate-500 mt-1 font-mono-code">Yawn Limit: > 0.55</p>
+                    </div>
+
+                    <!-- Drowsy Trigger Counter -->
+                    <div class="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/90">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-400">Sleep Alerts</span>
+                            <span class="text-xs">🚨</span>
+                        </div>
+                        <p id="drowsyCountMetric" class="font-mono-code text-2xl font-bold text-rose-400 mt-1.5">0</p>
+                        <p id="closureFramesSub" class="text-[11px] text-slate-500 mt-1 font-mono-code">Closed: 0/15 frames</p>
+                    </div>
+
+                    <!-- Yawn & Distraction Counter -->
+                    <div class="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/90">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-400">Yawns / Distracted</span>
+                            <span class="text-xs">🥱</span>
+                        </div>
+                        <div class="flex items-baseline space-x-2 mt-1.5 font-mono-code">
+                            <p id="yawnCountMetric" class="text-2xl font-bold text-amber-400">0</p>
+                            <span class="text-slate-600">/</span>
+                            <p id="distractCountMetric" class="text-xl font-bold text-indigo-400">0</p>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-1 font-mono-code">Fatigue Warnings</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Multi-Level Alert Matrix Status -->
+            <div class="hud-card rounded-2xl p-5">
+                <h3 class="font-hud text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+                    ⚡ Active Safety Alert Matrix
+                </h3>
+                <div class="space-y-2.5 text-xs">
+                    <div id="matrixEye" class="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between transition">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-base">👁️</span>
+                            <div>
+                                <p class="font-semibold text-slate-200">Microsleep & Eye Closure</p>
+                                <p class="text-[11px] text-slate-500">Triggers if EAR &lt; threshold for 0.6s</p>
+                            </div>
+                        </div>
+                        <span id="matrixEyeBadge" class="font-mono-code text-[11px] px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">NORMAL</span>
+                    </div>
+
+                    <div id="matrixYawn" class="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between transition">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-base">😮</span>
+                            <div>
+                                <p class="font-semibold text-slate-200">Yawn & Oxygen Fatigue</p>
+                                <p class="text-[11px] text-slate-500">Triggers when Mouth Ratio &gt; 0.55</p>
+                            </div>
+                        </div>
+                        <span id="matrixYawnBadge" class="font-mono-code text-[11px] px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">NORMAL</span>
+                    </div>
+
+                    <div id="matrixPose" class="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between transition">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="text-base">🧭</span>
+                            <div>
+                                <p class="font-semibold text-slate-200">Head Nod & Road Distraction</p>
+                                <p class="text-[11px] text-slate-500">Monitors 3D nose-vector alignment</p>
+                            </div>
+                        </div>
+                        <span id="matrixPoseBadge" class="font-mono-code text-[11px] px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">FOCUSED</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Event Telemetry Log -->
+            <div class="hud-card rounded-2xl p-5 flex-grow flex flex-col">
+                <div class="flex justify-between items-center mb-2.5">
+                    <h3 class="font-hud text-xs font-bold uppercase tracking-wider text-slate-400">📜 Incident Telemetry Log</h3>
+                    <button onclick="clearEventLogs()" class="text-[11px] text-slate-500 hover:text-cyan-400 transition">Clear History</button>
+                </div>
+                <div id="logBox" class="bg-slate-950/90 rounded-xl border border-slate-800/90 p-3 h-40 overflow-y-auto space-y-2 font-mono-code text-xs">
+                    <div class="text-slate-500">[SYSTEM] Ready. Click 'Activate AI Vision' to start 3D facial analysis.</div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        const videoElement = document.getElementById('videoElement');
+        const canvasElement = document.getElementById('canvasElement');
+        const canvasCtx = canvasElement.getContext('2d');
+
+        // Configuration & Thresholds
+        let earThreshold = 0.24;
+        const MAR_THRESHOLD = 0.55;
+        const DROWSY_FRAME_LIMIT = 15;
+        const YAWN_FRAME_LIMIT = 18;
+        const DISTRACT_FRAME_LIMIT = 22;
+
+        // Live Counters & State
+        let closedEyeFrames = 0;
+        let yawnFrames = 0;
+        let distractFrames = 0;
+        let fatigueScore = 0; // 0 to 100
+
+        let drowsyAlertCount = 0;
+        let yawnAlertCount = 0;
+        let distractAlertCount = 0;
+        let blinkCount = 0;
+        let eyeWasClosed = false;
+
+        let isDrowsyAlarmLatched = false;
+        let isYawnLatched = false;
+        let isDistractLatched = false;
+
+        let showFullMesh = true;
+        let voiceEnabled = true;
+        let lastSpeechTime = 0;
+        let lastFrameTime = performance.now();
+        let audioCtx = null;
+
+        // MediaPipe Landmark Indices
+        const LEFT_EYE = [362, 385, 387, 263, 373, 380];
+        const RIGHT_EYE = [33, 160, 158, 133, 153, 144];
+
+        function updateEarThreshold(val) {
+            earThreshold = parseFloat(val);
+            document.getElementById('earSliderVal').innerText = earThreshold.toFixed(2);
+        }
+
+        function toggleMeshOverlay() {
+            showFullMesh = !showFullMesh;
+            document.getElementById('meshBtn').innerText = showFullMesh ? "🕸️ Mesh: Full HUD" : "🕸️ Mesh: Eyes Only";
+        }
+
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            document.getElementById('voiceStatusText').innerText = voiceEnabled ? "AI Voice: ON" : "AI Voice: OFF";
+            document.getElementById('voiceToggleBtn').classList.toggle('text-cyan-300', voiceEnabled);
+            document.getElementById('voiceToggleBtn').classList.toggle('text-slate-500', !voiceEnabled);
+        }
+
+        // Euclidean Distance
+        function dist(p1, p2) {
+            return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        }
+
+        // Compute Eye Aspect Ratio (EAR)
+        function getEAR(indices, lm) {
+            const v1 = dist(lm[indices[1]], lm[indices[5]]);
+            const v2 = dist(lm[indices[2]], lm[indices[4]]);
+            const h = dist(lm[indices[0]], lm[indices[3]]);
+            return (v1 + v2) / (2.0 * h);
+        }
+
+        // Compute Mouth Aspect Ratio (MAR)
+        function getMAR(lm) {
+            const v = dist(lm[13], lm[14]);
+            const h = dist(lm[78], lm[308]);
+            return v / h;
+        }
+
+        // Compute Head Pose (Yaw & Pitch estimation from key 3D landmarks)
+        function getHeadPose(lm) {
+            const nose = lm[1];
+            const leftCheek = lm[234];
+            const rightCheek = lm[454];
+            const forehead = lm[10];
+            const chin = lm[152];
+
+            // Horizontal symmetry for Yaw (Left/Right turn)
+            const dLeft = Math.abs(nose.x - leftCheek.x);
+            const dRight = Math.abs(rightCheek.x - nose.x);
+            const yawRatio = (dLeft - dRight) / (dLeft + dRight);
+            const yawDeg = Math.round(yawRatio * 90);
+
+            // Vertical ratio for Pitch (Head nod down/up)
+            const dUp = Math.abs(nose.y - forehead.y);
+            const dDown = Math.abs(chin.y - nose.y);
+            const pitchRatio = (dUp - dDown) / (dUp + dDown);
+            const pitchDeg = Math.round(pitchRatio * 90);
+
+            return { yawDeg, pitchDeg };
+        }
+
+        // Dual-Tone Emergency Synthesizer Siren
+        function playEmergencySiren(mode = 'critical') {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            if (mode === 'critical') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(920, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(480, audioCtx.currentTime + 0.28);
+                gain.gain.setValueAtTime(0.45, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            } else {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(520, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+            }
+        }
+
+        // AI Voice Synthesis Alert
+        function speakWarning(text) {
+            if (!voiceEnabled || !('speechSynthesis' in window)) return;
+            const now = Date.now();
+            if (now - lastSpeechTime < 4500) return; // Prevent overlapping spam
+            lastSpeechTime = now;
+
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.05;
+            utterance.pitch = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function triggerManualTestAlert() {
+            playEmergencySiren('critical');
+            speakWarning("Warning! Drowsiness detection system test active.");
+            logIncident("Manual Siren & Voice Test Triggered", "warn");
+        }
+
+        function logIncident(msg, level = 'info') {
+            const box = document.getElementById('logBox');
+            const time = new Date().toLocaleTimeString();
+            const item = document.createElement('div');
+            if (level === 'danger') {
+                item.className = "text-rose-400 font-semibold bg-rose-950/40 px-2 py-1 rounded border-l-2 border-rose-500";
+            } else if (level === 'warn') {
+                item.className = "text-amber-300 bg-amber-950/30 px-2 py-1 rounded border-l-2 border-amber-400";
+            } else {
+                item.className = "text-cyan-300 px-2 py-0.5";
+            }
+            item.innerText = `[${time}] ${msg}`;
+            box.prepend(item);
+        }
+
+        function clearEventLogs() {
+            document.getElementById('logBox').innerHTML = '';
+        }
+
+        // Draw HUD Bounding Box around Detected Face
+        function drawCyberFaceBox(ctx, landmarks, w, h, statusColor) {
+            let minX = 1, minY = 1, maxX = 0, maxY = 0;
+            landmarks.forEach(pt => {
+                if (pt.x < minX) minX = pt.x;
+                if (pt.y < minY) minY = pt.y;
+                if (pt.x > maxX) maxX = pt.x;
+                if (pt.y > maxY) maxY = pt.y;
+            });
+
+            const x = minX * w - 15;
+            const y = minY * h - 15;
+            const bw = (maxX - minX) * w + 30;
+            const bh = (maxY - minY) * h + 30;
+
+            ctx.strokeStyle = statusColor;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, bw, bh);
+        }
+
+        // Main MediaPipe Callback
+        function onFaceResults(results) {
+            const now = performance.now();
+            const fps = Math.round(1000 / Math.max(now - lastFrameTime, 1));
+            lastFrameTime = now;
+            document.getElementById('fpsDisplay').innerText = `${fps} FPS`;
+
+            canvasElement.width = videoElement.videoWidth || 640;
+            canvasElement.height = videoElement.videoHeight || 480;
+            const w = canvasElement.width;
+            const h = canvasElement.height;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, w, h);
+            canvasCtx.drawImage(results.image, 0, 0, w, h);
+
+            const cameraFrame = document.getElementById('cameraFrame');
+            const criticalModal = document.getElementById('criticalModal');
+
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const lm = results.multiFaceLandmarks[0];
+                document.getElementById('meshPointsDisplay').innerText = "468 PTS LOCKED";
+
+                // 1. Compute EAR, MAR, and Head Pose
+                const leftEAR = getEAR(LEFT_EYE, lm);
+                const rightEAR = getEAR(RIGHT_EYE, lm);
+                const avgEAR = (leftEAR + rightEAR) / 2.0;
+                const mar = getMAR(lm);
+                const { yawDeg, pitchDeg } = getHeadPose(lm);
+
+                // Update Numeric UI
+                document.getElementById('earMetric').innerText = avgEAR.toFixed(2);
+                document.getElementById('leftEarSub').innerText = `L: ${leftEAR.toFixed(2)}`;
+                document.getElementById('rightEarSub').innerText = `R: ${rightEAR.toFixed(2)}`;
+                document.getElementById('marMetric').innerText = mar.toFixed(2);
+                document.getElementById('yawVal').innerText = `${yawDeg}°`;
+                document.getElementById('pitchVal').innerText = `${pitchDeg}°`;
+
+                // Blink Detection
+                if (avgEAR < earThreshold) {
+                    eyeWasClosed = true;
+                } else if (eyeWasClosed && avgEAR >= earThreshold) {
+                    blinkCount++;
+                    eyeWasClosed = false;
+                    document.getElementById('blinkRateDisplay').innerText = `Blinks: ${blinkCount}`;
+                }
+
+                // Draw Face Mesh Overlay
+                let boxColor = '#10b981'; // Emerald safe default
+                if (showFullMesh) {
+                    drawConnectors(canvasCtx, lm, FACEMESH_TESSELATION, {color: '#06b6d425', lineWidth: 0.7});
+                }
+                drawConnectors(canvasCtx, lm, FACEMESH_RIGHT_EYE, {color: '#22d3ee', lineWidth: 2});
+                drawConnectors(canvasCtx, lm, FACEMESH_LEFT_EYE, {color: '#22d3ee', lineWidth: 2});
+                drawConnectors(canvasCtx, lm, FACEMESH_LIPS, {color: '#c084fc', lineWidth: 1.5});
+
+                // --- A. CHECK EYE CLOSURE / MICROSLEEP ---
+                const matrixEyeBadge = document.getElementById('matrixEyeBadge');
+                if (avgEAR < earThreshold) {
+                    closedEyeFrames++;
+                    fatigueScore = Math.min(100, fatigueScore + 2.5);
+                } else {
+                    closedEyeFrames = Math.max(0, closedEyeFrames - 2);
+                    fatigueScore = Math.max(0, fatigueScore - 0.6);
+                    isDrowsyAlarmLatched = false;
+                }
+                document.getElementById('closureFramesSub').innerText = `Closed: ${closedEyeFrames}/${DROWSY_FRAME_LIMIT} frames`;
+
+                // --- B. CHECK YAWNING ---
+                const matrixYawnBadge = document.getElementById('matrixYawnBadge');
+                if (mar > MAR_THRESHOLD) {
+                    yawnFrames++;
+                    fatigueScore = Math.min(100, fatigueScore + 1.2);
+                } else {
+                    yawnFrames = Math.max(0, yawnFrames - 1);
+                    isYawnLatched = false;
+                }
+
+                // --- C. CHECK HEAD POSE DISTRACTION ---
+                const isLookingAway = Math.abs(yawDeg) > 26 || pitchDeg > 22;
+                const matrixPoseBadge = document.getElementById('matrixPoseBadge');
+                const poseBadge = document.getElementById('poseBadge');
+
+                if (isLookingAway) {
+                    distractFrames++;
+                    poseBadge.innerText = Math.abs(yawDeg) > 26 ? "SIDE GLANCE" : "HEAD NODDING";
+                    poseBadge.className = "text-xs font-mono-code px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40";
+                } else {
+                    distractFrames = Math.max(0, distractFrames - 2);
+                    isDistractLatched = false;
+                    poseBadge.innerText = "CENTERED";
+                    poseBadge.className = "text-xs font-mono-code px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
+                }
+
+                // Update Fatigue Bar
+                const roundedFatigue = Math.round(fatigueScore);
+                document.getElementById('fatiguePercent').innerText = `${roundedFatigue}%`;
+                document.getElementById('fatigueBar').style.width = `${roundedFatigue}%`;
+
+                // --- EVALUATE ALERTS PRIORITY ---
+                if (closedEyeFrames >= DROWSY_FRAME_LIMIT) {
+                    // LEVEL 1: CRITICAL SLEEP ALERT
+                    boxColor = '#ef4444';
+                    cameraFrame.classList.add('critical-strobe');
+                    criticalModal.classList.remove('hidden');
+                    document.getElementById('criticalTitle').innerText = "CRITICAL DROWSINESS DETECTED!";
+                    document.getElementById('criticalDesc').innerText = "Driver eyes closed beyond safety threshold. Wake up immediately!";
+
+                    updateHudBanner("🚨", "EMERGENCY: DRIVER SLEEPING!", "Acoustic & voice intervention active", "text-red-400");
+                    matrixEyeBadge.innerText = "CRITICAL";
+                    matrixEyeBadge.className = "font-mono-code text-[11px] px-2.5 py-1 rounded bg-red-600 text-white font-bold animate-pulse";
+
+                    if (closedEyeFrames % 5 === 0) playEmergencySiren('critical');
+                    speakWarning("Danger! Drowsiness detected. Wake up immediately!");
+
+                    if (!isDrowsyAlarmLatched) {
+                        isDrowsyAlarmLatched = true;
+                        drowsyAlertCount++;
+                        document.getElementById('drowsyCountMetric').innerText = drowsyAlertCount;
+                        logIncident(`CRITICAL: Microsleep detected (EAR: ${avgEAR.toFixed(2)})`, 'danger');
+                    }
+                } else if (yawnFrames >= YAWN_FRAME_LIMIT) {
+                    // LEVEL 2: YAWN FATIGUE ALERT
+                    boxColor = '#f59e0b';
+                    cameraFrame.classList.remove('critical-strobe');
+                    criticalModal.classList.remove('hidden');
+                    document.getElementById('criticalTitle').innerText = "FATIGUE WARNING: YAWNING DETECTED";
+                    document.getElementById('criticalDesc').innerText = "High mouth opening ratio detected. Consider taking a coffee break.";
+
+                    updateHudBanner("🥱", "FATIGUE WARNING: YAWNING", "Driver showing signs of oxygen fatigue", "text-amber-400");
+                    matrixYawnBadge.innerText = "YAWNING";
+                    matrixYawnBadge.className = "font-mono-code text-[11px] px-2.5 py-1 rounded bg-amber-500 text-slate-950 font-bold";
+
+                    if (yawnFrames % 10 === 0) playEmergencySiren('warn');
+                    speakWarning("Fatigue alert. You are yawning, please take a rest break.");
+
+                    if (!isYawnLatched) {
+                        isYawnLatched = true;
+                        yawnAlertCount++;
+                        document.getElementById('yawnCountMetric').innerText = yawnAlertCount;
+                        logIncident(`WARNING: Prolonged Yawn detected (MAR: ${mar.toFixed(2)})`, 'warn');
+                    }
+                } else if (distractFrames >= DISTRACT_FRAME_LIMIT) {
+                    // LEVEL 3: HEAD DISTRACTION / NODDING
+                    boxColor = '#818cf8';
+                    cameraFrame.classList.remove('critical-strobe');
+                    criticalModal.classList.add('hidden');
+
+                    updateHudBanner("🧭", "ATTENTION ALERT: KEEP EYES ON ROAD", "Head orientation deviated from center axis", "text-indigo-400");
+                    matrixPoseBadge.innerText = "DISTRACTED";
+                    matrixPoseBadge.className = "font-mono-code text-[11px] px-2.5 py-1 rounded bg-indigo-500 text-white font-bold";
+
+                    if (distractFrames % 10 === 0) playEmergencySiren('warn');
+                    speakWarning("Attention alert! Please keep your eyes on the road.");
+
+                    if (!isDistractLatched) {
+                        isDistractLatched = true;
+                        distractAlertCount++;
+                        document.getElementById('distractCountMetric').innerText = distractAlertCount;
+                        logIncident(`ALERT: Driver head distraction (Yaw: ${yawDeg}°, Pitch: ${pitchDeg}°)`, 'warn');
+                    }
+                } else {
+                    // ALL NORMAL
+                    cameraFrame.classList.remove('critical-strobe');
+                    criticalModal.classList.add('hidden');
+                    updateHudBanner("✅", "DRIVER ACTIVE & VIGILANT", "All facial biometrics within safe parameters", "text-emerald-400");
+
+                    matrixEyeBadge.innerText = "NORMAL";
+                    matrixEyeBadge.className = "font-mono-code text-[11px] px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800";
+                    matrixYawnBadge.innerText = "NORMAL";
+                    matrixYawnBadge.className = "font-mono-code text-[11px] px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800";
+                    matrixPoseBadge.innerText = "FOCUSED";
+                    matrixPoseBadge.className = "font-mono-code text-[11px] px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800";
+                }
+
+                // Draw Cyber Bounding Box around face
+                drawCyberFaceBox(canvasCtx, lm, w, h, boxColor);
+
+            } else {
+                // No Face Detected
+                cameraFrame.classList.remove('critical-strobe');
+                criticalModal.classList.add('hidden');
+                document.getElementById('meshPointsDisplay').innerText = "0 PTS";
+                updateHudBanner("🔍", "NO DRIVER FACE IN FRAME", "Ensure face is centered and well-lit", "text-amber-400");
+            }
+
+            canvasCtx.restore();
+        }
+
+        function updateHudBanner(emoji, title, sub, colorClass) {
+            document.getElementById('hudStatusEmoji').innerText = emoji;
+            const titleEl = document.getElementById('hudStatusTitle');
+            titleEl.innerText = title;
+            titleEl.className = `font-hud text-xs md:text-sm font-bold tracking-wider ${colorClass}`;
+            document.getElementById('hudStatusSub').innerText = sub;
+        }
+
+        // Initialize MediaPipe FaceMesh
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.55,
+            minTrackingConfidence: 0.55
+        });
+
+        faceMesh.onResults(onFaceResults);
+
+        // Start Camera & AI Engine
+        function startCameraAI() {
+            const btn = document.getElementById('startBtn');
+            btn.innerText = "⏳ Initializing Neural Mesh...";
+            btn.disabled = true;
+
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await faceMesh.send({image: videoElement});
+                },
+                width: 640,
+                height: 480
+            });
+
+            camera.start().then(() => {
+                btn.innerText = "🟢 AI Telemetry Active";
+                btn.className = "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold px-5 py-2.5 rounded-xl text-sm flex items-center space-x-2 cursor-default";
+                document.getElementById('scannerLine').classList.remove('hidden');
+
+                document.getElementById('stateDot').className = "w-2 h-2 rounded-full bg-emerald-400 animate-ping";
+                document.getElementById('stateLabel').innerText = "ONLINE";
+                document.getElementById('systemStateBadge').className = "px-3.5 py-1.5 rounded-full text-xs font-mono-code font-semibold bg-emerald-950/90 text-emerald-300 border border-emerald-700 flex items-center space-x-2";
+
+                logIncident("468-Point FaceMesh & Real-Time Telemetry Online.", "info");
+                speakWarning("Drowsy Drive AI system online and monitoring.");
+            }).catch(err => {
+                btn.innerText = "❌ Camera Blocked";
+                btn.disabled = false;
+                logIncident("Camera Error: " + err.message, "danger");
+            });
+        }
+    </script>
+</body>
+</html>
